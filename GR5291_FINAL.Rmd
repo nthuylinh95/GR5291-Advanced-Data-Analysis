@@ -1,0 +1,89 @@
+---
+title: "GR5291_FINAL_PROJECT"
+author: "Hui Chiang Tay (ht2490), Thuy Linh Nguyen (tn2382)"
+date: "5/10/2019"
+output: pdf_document
+---
+
+```{r libraries}
+library(survival)
+library(KMsurv)
+library(MASS)
+library(nnet)
+library('arm')
+```
+
+
+```{r data}
+# Import data:
+heart <- read.csv("Framingham Heart Data.csv", header = TRUE, na.strings=c("","NA"))
+summary(heart)
+# Create status variable with ‘Alive’, ‘Cancer’, ‘Cerebral Vascular Disease’, ‘Coronary Heart Disease’, and ‘Other':
+heart$status <- ifelse(is.na(heart$DeathCause), "Alive", as.character(heart$DeathCause))
+heart <- heart[heart$status != "Unknown",] # Remove row if unknown
+heart$status <- as.factor(heart$status)
+names(heart)[10] <- "MRW"
+heart2 <- heart[,c(18, 4,5,6,7,8,9,10,11,13,14,15,16,17)]
+```
+
+```{r exploratory_analysis}
+heart2 <- na.omit(heart2) # Omit NA values
+cor(heart2[,c(3:10)]) # Correlation table
+# Create boxplots for exploratory data analysis:
+boxplot(MRW ~ status, data = heart2)
+boxplot(Cholesterol ~ status, data = heart2)
+boxplot(AgeAtStart ~ status, data = heart2)
+boxplot(Smoking ~ status, data = heart2)
+boxplot(Diastolic ~ status, data = heart2)
+barplot(summary(heart2$status))
+```
+
+```{r model1}
+# Full model
+model11 <- multinom(status ~ Sex + AgeAtStart + Height + Weight + Diastolic + Systolic + MRW + Smoking + Cholesterol, data = heart2)
+summary(model11)
+# Calculate p-values for slopes:
+z11 <- summary(model11)$coefficients/summary(model11)$standard.errors
+p11 <- (1-pnorm(abs(z11), 0, 1)) * 2
+p11
+# Reduced model
+model12 <- multinom(status ~ Sex + AgeAtStart + Systolic + Height + MRW + Smoking + Cholesterol, data = heart2)
+summary(model12)
+# Calculate p-values for slopes:
+z12 <- summary(model12)$coefficients/summary(model12)$standard.errors
+p12 <- (1-pnorm(abs(z12), 0, 1))*2
+p12
+# Test which model is a better fit (equivalent to ANOVA):
+1-pchisq(model12$deviance-model11$deviance, model11$edf-model12$edf)
+```
+
+```{r model2}
+# Keep only as outcome variable causes of death:
+heart3 <- heart2[heart2$status != "Alive",]
+heart3$status <- droplevels(heart3$status)
+# Full model:
+model21 <- multinom(as.factor(status) ~ Sex + AgeAtStart + Height + Weight + Diastolic + Systolic + MRW + Smoking + Cholesterol, data = heart3)
+summary(model21)
+# Calculate p-values for slopes:
+z21 <- summary(model21)$coefficients/summary(model21)$standard.errors
+p21 <- (1-pnorm(abs(z21), 0, 1))*2
+p21
+# Reduced model:
+model22 <- multinom(as.factor(status) ~ Sex + AgeAtStart + Height + Weight  + Systolic + MRW  + Cholesterol, data = heart3)
+summary(model22)
+# Calculate p-values for slopes:
+z22 <- summary(model22)$coefficients/summary(model22)$standard.errors
+p22 <- (1-pnorm(abs(z22), 0, 1))*2
+p22
+# Check which model is a better fit:
+1-pchisq(model22$deviance-model21$deviance, model21$edf-model22$edf)
+# We can do the same with ANOVA:
+anova(model21, model22)
+```
+
+```{r residual_diagnostics}
+# Change model12 to the name of your reduced model.
+# The code below plots the residuals of odds(cancer) against expected value of odds(cancer).
+# You can change the '2' to '3' or '4' based on which status you like best.
+binnedplot(x = model12$fitted.values[,2], y = model12$residuals[,2], xlab = 'Expected values for cancer', main = NULL)
+```
